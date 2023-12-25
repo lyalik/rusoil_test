@@ -1,5 +1,5 @@
 <?php
-// Обработка отправки формы
+// Проверка, что форма была отправлена методом POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Получение данных из формы
     $title = $_POST['title'];
@@ -9,9 +9,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $items = $_POST['items'];
     $comment = $_POST['comment'];
 
-    // Перенаправление на страницу после отправки формы
-    header('Location: success.php');
-    exit();
+    // Проверка обязательных полей
+    $errors = [];
+    if (empty($title)) {
+        $errors[] = 'Заголовок заявки обязателен для заполнения';
+    }
+    if (empty($category)) {
+        $errors[] = 'Категория обязательна для заполнения';
+    }
+    if (empty($requestType)) {
+        $errors[] = 'Вид заявки обязателен для заполнения';
+    }
+
+    // Если есть ошибки, выводим их
+    if (!empty($errors)) {
+        foreach ($errors as $error) {
+            echo $error . '<br>';
+        }
+    } else {
+        // Формирование текста письма
+        $message = "Заголовок заявки: $title\n";
+        $message .= "Категория: $category\n";
+        $message .= "Вид заявки: $requestType\n";
+        $message .= "Склад поставки: $warehouse\n";
+        $message .= "Состав заявки:\n";
+        foreach ($items as $item) {
+            $message .= "Бренд: {$item['brand']}, Наименование: {$item['name']}, Количество: {$item['quantity']}, Фасовка: {$item['packaging']}, Клиент: {$item['client']}\n";
+        }
+        $message .= "Комментарий: $comment\n";
+
+        // Отправка письма с прикрепленным файлом
+        $file = $_FILES['file'];
+        $fileCount = count($file['name']);
+        for ($i = 0; $i < $fileCount; $i++) {
+            $fileName = $file['name'][$i];
+            $fileTmpName = $file['tmp_name'][$i];
+            $fileSize = $file['size'][$i];
+            $fileError = $file['error'][$i];
+            if ($fileError === UPLOAD_ERR_OK) {
+                $fileDestination = 'uploads/' . $fileName;
+                move_uploaded_file($fileTmpName, $fileDestination);
+                $message .= "Прикрепленный файл: $fileName\n";
+            }
+        }
+
+        // Отправка письма
+        // ...
+
+        // Перенаправление на страницу после отправки формы
+        header('Location: success.php');
+        exit();
+    }
 }
 ?>
 
@@ -26,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
     <div class="container">
         <h1>Форма заявки</h1>
-        <form method="POST" action="">
+        <form method="POST" action="" enctype="multipart/form-data">
             <div class="form-group">
                 <label for="title">Заголовок заявки</label>
                 <input type="text" class="form-control" id="title" name="title" required>
@@ -34,6 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="form-group">
                 <label for="category">Категория</label>
                 <select class="form-control" id="category" name="category" required>
+                    <option value="">Выберите категорию</option>
                     <option value="Масла">Масла</option>
                     <option value="Шины">Шины</option>
                 </select>
@@ -41,6 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="form-group">
                 <label for="requestType">Вид заявки</label>
                 <select class="form-control" id="requestType" name="requestType" required>
+                    <option value="">Выберите вид заявки</option>
                     <option value="Запрос">Запрос</option>
                     <option value="Пополнения">Пополнения</option>
                     <option value="Спецзаказ">Спецзаказ</option>
@@ -49,6 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="form-group">
                 <label for="warehouse">Склад поставки</label>
                 <select class="form-control" id="warehouse" name="warehouse" required>
+                    <option value="">Выберите склад поставки</option>
                     <option value="1 склад">1 склад</option>
                     <option value="2 склад">2 склад</option>
                 </select>
@@ -58,7 +109,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div id="itemsContainer">
                     <div class="form-row">
                         <div class="col">
-                            <input type="text" class="form-control" name="items[0][brand]" placeholder="Бренд" required>
+                            <select class="form-control" name="items[0][brand]" required>
+                                <option value="">Выберите бренд</option>
+                                <option value="Первый бренд">Первый бренд</option>
+                                <option value="Второй бренд">Второй бренд</option>
+                            </select>
                         </div>
                         <div class="col">
                             <input type="text" class="form-control" name="items[0][name]" placeholder="Наименование" required>
@@ -72,17 +127,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="col">
                             <input type="text" class="form-control" name="items[0][client]" placeholder="Клиент" required>
                         </div>
+                        <div class="col">
+                            <button type="button" class="btn btn-danger" onclick="removeItem(this)">-</button>
+                        </div>
                     </div>
                 </div>
-                <button type="button" class="btn btn-primary mt-2" onclick="addItem()">Добавить</button>
-            </div>
-            <div class="form-group">
-                <label for="file">Файлы</label>
-                <input type="file" class="form-control-file" id="file" name="file[]" multiple>
+                <button type="button" class="btn btn-primary mt-2" onclick="addItem()">+</button>
             </div>
             <div class="form-group">
                 <label for="comment">Комментарий</label>
                 <textarea class="form-control" id="comment" name="comment" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="file">Файлы</label>
+                <div class="custom-file">
+                    <input type="file" class="custom-file-input" id="file" name="file[]" multiple>
+                    <label class="custom-file-label" for="file">Выберите файлы</label>
+                </div>
             </div>
             <button type="submit" class="btn btn-primary">Отправить</button>
         </form>
@@ -96,7 +157,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             var itemHtml = `
                 <div class="form-row">
                     <div class="col">
-                        <input type="text" class="form-control" name="items[${itemCount}][brand]" placeholder="Бренд" required>
+                        <select class="form-control" name="items[${itemCount}][brand]" required>
+                            <option value="">Выберите бренд</option>
+                            <option value="Первый бренд">Первый бренд</option>
+                            <option value="Второй бренд">Второй бренд</option>
+                        </select>
                     </div>
                     <div class="col">
                         <input type="text" class="form-control" name="items[${itemCount}][name]" placeholder="Наименование" required>
@@ -110,9 +175,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="col">
                         <input type="text" class="form-control" name="items[${itemCount}][client]" placeholder="Клиент" required>
                     </div>
+                    <div class="col">
+                        <button type="button" class="btn btn-danger" onclick="removeItem(this)">-</button>
+                    </div>
                 </div>
             `;
             $('#itemsContainer').append(itemHtml);
+        }
+
+        function removeItem(button) {
+            $(button).closest('.form-row').remove();
         }
     </script>
 </body>
