@@ -9,9 +9,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $items = $_POST['items'];
     $comment = $_POST['comment'];
 
-    // Обработка данных и отправка почты
-    // ...
-
     // Перенаправление на страницу после отправки формы
     header('Location: success.php');
     exit();
